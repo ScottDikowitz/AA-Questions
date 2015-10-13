@@ -52,21 +52,57 @@ class ModelBase
   def instance_variable_strings
     self.instance_variables.map do |var|
       var.to_s[1..-1]
-    end.[1..-1].join(",")
+    end[1..-1].join(",")
   end
 
   def instance_variable_setter
     self.instance_variables.map do |var|
       (var.to_s[1..-1] + "= ?")
-    end.[1..-1].join(",")
+    end[1..-1].join(",")
   end
 
-  def options_hash_where(options)
-    options.instance_variables.map do |k,v|
-      "#{k} = #{v}"
-    end.join("AND")
+  def self.options_hash_where(options)
+    options.map do |k,v|
+      if v.is_a?(String)
+        "#{k} = '#{v}'"
+      else
+        "#{k} = #{v}"
+      end
+    end.join(" AND ")
   end
 
+  def self.where(options = {})
+    if options.is_a? Hash
+      opts = options_hash_where(options)
+    else
+      opts = options
+    end
+      p opts
+    results = QuestionsDatabase.instance.execute(<<-SQL)
+      SELECT
+        *
+      FROM
+        #{self.const_get("TABLE_NAME")}
+      WHERE
+        #{opts}
+  SQL
+    results.map { |params| self.new(params) }
+  end
+
+  def self.method_missing(method_name, *vals)
+    if method_name.to_s.start_with? "find_by"
+      keys = method_name[8..-1].split('_')
+      keys.delete("and")
+      store = Hash.new
+      keys.each_with_index do |key, i|
+        store[key] = vals[i]
+      end
+      where(store)
+    else
+      super
+    end
+
+  end
 
   def save
     if self.id.nil?
@@ -90,19 +126,6 @@ class ModelBase
           id = ?
       SQL
     end
-  end
-
-  def where(options = {})
-      opts = options_hash_where(options)
-    results = QuestionsDatabase.instance.execute(<<-SQL, opts)
-      SELECT
-        *
-      FROM
-        #{TABLE_NAME}
-      WHERE
-        ?
-  SQL
-    results.map { |params| Self.new(params) }
   end
 
 end
