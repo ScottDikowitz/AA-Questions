@@ -21,43 +21,26 @@ class QuestionsDatabase < SQLite3::Database
   end
 end
 
-class User
-  attr_accessor :id, :fname, :lname
+class ModelBase
+
+  TABLE_NAME = nil
+
   def self.find_by_id(id)
     params = QuestionsDatabase.instance.execute(<<-SQL, id)
       SELECT
         *
       FROM
-        users
+        #{TABLE_NAME}
       WHERE
         id = ?
     SQL
 
-    User.new(params.first)
-  end
-
-  def self.find_by_name(fname, lname)
-    params = QuestionsDatabase.instance.execute(<<-SQL, fname, lname)
-      SELECT
-        *
-      FROM
-        users
-      WHERE
-        fname = ? AND lname = ?
-    SQL
-
-    User.new(params.first)
+    Self.new(params.first)
   end
 
   def self.all
-    results = QuestionsDatabase.instance.execute("SELECT * FROM users")
-    results.map { |params| User.new(params) }
-  end
-
-  def initialize(params={})
-    @id = params["id"]
-    @fname = params["fname"]
-    @lname = params["lname"]
+    results = QuestionsDatabase.instance.execute("SELECT * FROM #{TABLE_NAME}")
+    results.map { |params| Self.new(params) }
   end
 
   def save
@@ -83,6 +66,32 @@ class User
           id = ?
       SQL
     end
+  end
+
+end
+
+class User < ModelBase
+
+  TABLE_NAME = users
+
+  def self.find_by_name(fname, lname)
+    params = QuestionsDatabase.instance.execute(<<-SQL, fname, lname)
+      SELECT
+        *
+      FROM
+        users
+      WHERE
+        fname = ? AND lname = ?
+    SQL
+
+    User.new(params.first)
+  end
+
+  attr_accessor :id, :fname, :lname
+  def initialize(params={})
+    @id = params["id"]
+    @fname = params["fname"]
+    @lname = params["lname"]
   end
 
   def authored_questions
@@ -118,19 +127,7 @@ class User
 
 end
 
-class Question
-  def self.find_by_id(id)
-    params = QuestionsDatabase.instance.execute(<<-SQL, id)
-      SELECT
-        *
-      FROM
-        questions
-      WHERE
-        id = ?
-    SQL
-
-    Question.new(params.first)
-  end
+class Question < ModelBase
 
   def self.find_by_author_id(author_id)
     results = QuestionsDatabase.instance.execute(<<-SQL, author_id)
@@ -141,11 +138,6 @@ class Question
       WHERE
         user_id = ?
     SQL
-    results.map { |params| Question.new(params) }
-  end
-
-  def self.all
-    results = QuestionsDatabase.instance.execute("SELECT * FROM questions")
     results.map { |params| Question.new(params) }
   end
 
@@ -187,19 +179,7 @@ class Question
   end
 end
 
-class Reply
-  def self.find_by_id(id)
-    params = QuestionsDatabase.instance.execute(<<-SQL, id)
-      SELECT
-        *
-      FROM
-        replies
-      WHERE
-        id = ?
-    SQL
-
-    Reply.new(params.first)
-  end
+class Reply < ModelBase
 
   def self.find_by_author_id(author_id)
     results = QuestionsDatabase.instance.execute(<<-SQL, author_id)
@@ -224,12 +204,7 @@ class Reply
   SQL
   results.map { |params| Reply.new(params) }
   end
-
-  def self.all
-    results = QuestionsDatabase.instance.execute("SELECT * FROM replies")
-    results.map { |params| Reply.new(params) }
-  end
-
+  
   attr_accessor :id, :body, :parent_id, :user_id, :question_id
   def initialize(params={})
     @id = params["id"]
