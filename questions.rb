@@ -43,36 +43,73 @@ class ModelBase
     results.map { |params| Self.new(params) }
   end
 
+  def instance_variable_values
+    self.instance_variables.map do |var|
+      self.instance_variable_get(var)
+    end[1..-1]
+  end
+
+  def instance_variable_strings
+    self.instance_variables.map do |var|
+      var.to_s[1..-1]
+    end.[1..-1].join(",")
+  end
+
+  def instance_variable_setter
+    self.instance_variables.map do |var|
+      (var.to_s[1..-1] + "= ?")
+    end.[1..-1].join(",")
+  end
+
+  def options_hash_where(options)
+    options.instance_variables.map do |k,v|
+      "#{k} = #{v}"
+    end.join("AND")
+  end
+
+
   def save
     if self.id.nil?
-      params = [self.fname, self.lname]
+      params = instance_variable_values
       QuestionsDatabase.instance.execute(<<-SQL, *params)
         INSERT INTO
-          users (fname, lname)
+          #{TABLE_NAME} (#{instance_variable_strings})
         VALUES
-          (?, ?)
+          (#{instance_variable_strings.map{"?"}.join(",")})
       SQL
 
       @id = QuestionsDatabase.instance.last_insert_row_id
     else
-      params = [self.fname, self.lname, self.id]
+      params = instance_variable_values + [self.id]
       QuestionsDatabase.instance.execute(<<-SQL, *params)
         UPDATE
-          users
+          #{TABLE_NAME}
         SET
-          fname = ?,
-          lname = ?
+          #{instance_variable_setter}
         WHERE
           id = ?
       SQL
     end
   end
 
+  def where(options = {})
+      opts = options_hash_where(options)
+    results = QuestionsDatabase.instance.execute(<<-SQL, opts)
+      SELECT
+        *
+      FROM
+        #{TABLE_NAME}
+      WHERE
+        ?
+  SQL
+    results.map { |params| Self.new(params) }
+  end
+
 end
 
 class User < ModelBase
 
-  TABLE_NAME = users
+  TABLE_NAME = 'users'
 
   def self.find_by_name(fname, lname)
     params = QuestionsDatabase.instance.execute(<<-SQL, fname, lname)
@@ -129,6 +166,8 @@ end
 
 class Question < ModelBase
 
+  TABLE_NAME = 'questions'
+
   def self.find_by_author_id(author_id)
     results = QuestionsDatabase.instance.execute(<<-SQL, author_id)
       SELECT
@@ -181,6 +220,8 @@ end
 
 class Reply < ModelBase
 
+  TABLE_NAME = 'replies'
+
   def self.find_by_author_id(author_id)
     results = QuestionsDatabase.instance.execute(<<-SQL, author_id)
       SELECT
@@ -204,7 +245,7 @@ class Reply < ModelBase
   SQL
   results.map { |params| Reply.new(params) }
   end
-  
+
   attr_accessor :id, :body, :parent_id, :user_id, :question_id
   def initialize(params={})
     @id = params["id"]
