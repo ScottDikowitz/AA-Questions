@@ -30,17 +30,17 @@ class ModelBase
       SELECT
         *
       FROM
-        #{TABLE_NAME}
+        #{self.const_get("TABLE_NAME")}
       WHERE
         id = ?
     SQL
 
-    Self.new(params.first)
+    self.new(params.first)
   end
 
   def self.all
-    results = QuestionsDatabase.instance.execute("SELECT * FROM #{TABLE_NAME}")
-    results.map { |params| Self.new(params) }
+    results = QuestionsDatabase.instance.execute("SELECT * FROM #{self.const_get("TABLE_NAME")}")
+    results.map { |params| self.new(params) }
   end
 
   def instance_variable_values
@@ -52,6 +52,12 @@ class ModelBase
   def instance_variable_strings
     self.instance_variables.map do |var|
       var.to_s[1..-1]
+    end[1..-1].join(",")
+  end
+
+  def instance_variable_marks
+    self.instance_variables.map do |var|
+      "?"
     end[1..-1].join(",")
   end
 
@@ -77,7 +83,6 @@ class ModelBase
     else
       opts = options
     end
-      p opts
     results = QuestionsDatabase.instance.execute(<<-SQL)
       SELECT
         *
@@ -109,9 +114,9 @@ class ModelBase
       params = instance_variable_values
       QuestionsDatabase.instance.execute(<<-SQL, *params)
         INSERT INTO
-          #{TABLE_NAME} (#{instance_variable_strings})
+          #{self.class.const_get("TABLE_NAME")} (#{instance_variable_strings})
         VALUES
-          (#{instance_variable_strings.map{"?"}.join(",")})
+          (#{instance_variable_marks})
       SQL
 
       @id = QuestionsDatabase.instance.last_insert_row_id
@@ -119,7 +124,7 @@ class ModelBase
       params = instance_variable_values + [self.id]
       QuestionsDatabase.instance.execute(<<-SQL, *params)
         UPDATE
-          #{TABLE_NAME}
+          #{self.class.const_get("TABLE_NAME")}
         SET
           #{instance_variable_setter}
         WHERE
